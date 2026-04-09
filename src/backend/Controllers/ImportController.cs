@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Parking.Api.Data;
 using Parking.Api.Models;
 using Parking.Api.Services;
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Parking.Api.Controllers
 {
@@ -17,62 +19,65 @@ namespace Parking.Api.Controllers
         public ImportController(AppDbContext db, PlacaService placa) { _db = db; _placa = placa; }
 
         [HttpPost("csv")]
-        public async Task<IActionResult> ImportCsv()
+        public async Task<IActionResult> ImportCsvDetalhado(IFormFile file, CancellationToken ct)
         {
-            if (!Request.HasFormContentType || Request.Form.Files.Count == 0)
-                return BadRequest("Envie um arquivo CSV no campo 'file'.");
+            if (file == null || file.Length == 0)
+                return BadRequest("Envie um arquivo CSV.");
 
-            var file = Request.Form.Files[0];
-            using var s = file.OpenReadStream();
-            using var r = new StreamReader(s, Encoding.UTF8);
+            var resultados = new List<object>();
+            using var reader = new StreamReader(file.OpenReadStream(), Encoding.UTF8);
+            int linhaAtual = 0;
+            string? header = await reader.ReadLineAsync(); 
 
-            int linha = 0, processados = 0, inseridos = 0;
-            var erros = new List<string>();
-            string? header = await r.ReadLineAsync(); // consome cabeçalho
-            while (!r.EndOfStream)
+            while (!reader.EndOfStream)
             {
-                linha++;
-                var raw = await r.ReadLineAsync();
-                if (string.IsNullOrWhiteSpace(raw)) continue;
-                processados++;
+                linhaAtual++;
+                var raw = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    resultados.Add(new { Linha = linhaAtual, Status = "Erro", Mensagem = "Linha vazia" });
+                    continue;
+                }
 
-                // CSV simples separado por vírgula: placa,modelo,ano,cliente_identificador,cliente_nome,cliente_telefone,cliente_endereco,mensalista,valor_mensalidade
-                var cols = raw.Split(',');
                 try
                 {
-                    var placa = _placa.Sanitizar(cols[0]);
-                    var modelo = cols[1];
-                    int? ano = int.TryParse(cols[2], out var _ano) ? _ano : null;
-                    var cliId = cols[3];
-                    var cliNome = cols[4];
-                    var cliTel = new string((cols[5] ?? "").Where(char.IsDigit).ToArray());
-                    var cliEnd = cols[6];
-                    bool mensalista = bool.TryParse(cols[7], out var m) && m;
-                    decimal? valorMens = decimal.TryParse(cols[8], out var vm) ? vm : null;
+                    var colunas = raw.Split(',');
+                    if (colunas.Length != 9)
+                        throw new Exception("Colunas insuficientes");
 
-                    if (!_placa.EhValida(placa)) throw new Exception("Placa inválida");
-                    if (await _db.Veiculos.AnyAsync(v => v.Placa == placa)) throw new Exception("Placa duplicada");
+                    String placa = colunas[0].Trim().ToUpperInvariant();
+                    var modelo = colunas[1].Trim();
+                    var ano = int.Parse(colunas[2]);
+                    var clienteId = colunas[3].Trim();
+                    var nome = colunas[4].Trim();
+                    var telefone = Regex.Replace(colunas[5], @"\D", "");
+                    var endereco = colunas[6].Trim();
+                    var mensalista = bool.Parse(colunas[7]);
+                    var valorMensalidade = decimal.Parse(colunas[8], CultureInfo.InvariantCulture);                   
 
-                    var cliente = await _db.Clientes.FirstOrDefaultAsync(c => c.Nome == cliNome && c.Telefone == cliTel);
-                    if (cliente == null)
+                    resultados.Add(new
                     {
-                        cliente = new Cliente { Nome = cliNome, Telefone = cliTel, Endereco = cliEnd, Mensalista = mensalista, ValorMensalidade = valorMens };
-                        _db.Clientes.Add(cliente);
-                        await _db.SaveChangesAsync();
-                    }
-
-                    var v = new Veiculo { Placa = placa, Modelo = modelo, Ano = ano, ClienteId = cliente.Id };
-                    _db.Veiculos.Add(v);
-                    await _db.SaveChangesAsync();
-                    inseridos++;
+                        Linha = linhaAtual,
+                        Status = "Sucesso",
+                        Placa = placa,
+                        Modelo = modelo,
+                        Ano = ano,
+                        Cliente = nome
+                    });
                 }
                 catch (Exception ex)
                 {
-                    erros.Add($"Linha {linha}: {ex.Message} (raw='{raw}')");
+                    resultados.Add(new
+                    {
+                        Linha = linhaAtual,
+                        Status = "Erro",
+                        Mensagem = ex.Message,
+                        Conteudo = raw
+                    });
                 }
             }
 
-            return Ok(new { processados, inseridos, erros });
+            return Ok(resultados);
         }
     }
 }

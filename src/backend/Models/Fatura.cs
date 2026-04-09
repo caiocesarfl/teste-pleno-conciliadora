@@ -8,6 +8,8 @@ namespace Parking.Api.Models
         public Guid ClienteId { get; set; }
         public decimal Valor { get; set; }
         public DateTime CriadaEm { get; set; } = DateTime.UtcNow;
+
+        public DateTime FinalizadaEm { get; set; }
         public string? Observacao { get; set; }
 
         public List<FaturaVeiculo> Veiculos { get; set; } = new();

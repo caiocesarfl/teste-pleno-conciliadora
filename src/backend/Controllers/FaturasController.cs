@@ -23,6 +23,13 @@ namespace Parking.Api.Controllers
             return Ok(new { criadas = criadas.Count });
         }
 
+        [HttpPost("GerarParcialmente")]
+        public async Task<IActionResult> GerarParcialmente([FromBody] GerarFaturaRequest req, CancellationToken ct)
+        {
+            var criadas = await _fat.GerarFaturamentoParcialAsync(req.Competencia,req.DataInicial, req.DataFinal, ct);
+            return Ok(new { criadas = criadas.Count });
+        }
+
         [HttpGet]
         public async Task<IActionResult> List([FromQuery] string? competencia = null)
         {

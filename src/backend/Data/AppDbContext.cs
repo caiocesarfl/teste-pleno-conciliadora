@@ -4,14 +4,21 @@ using Parking.Api.Models;
 
 namespace Parking.Api.Data
 {
+ 
+
     public class AppDbContext : DbContext
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) {}
+
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         public DbSet<Cliente> Clientes => Set<Cliente>();
         public DbSet<Veiculo> Veiculos => Set<Veiculo>();
         public DbSet<Fatura> Faturas => Set<Fatura>();
         public DbSet<FaturaVeiculo> FaturasVeiculos => Set<FaturaVeiculo>();
+
+        public DbSet<VeiculoCliente> VeiculoClientes { get; set; }
+
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -69,3 +76,5 @@ namespace Parking.Api.Data
         }
     }
 }
+
+

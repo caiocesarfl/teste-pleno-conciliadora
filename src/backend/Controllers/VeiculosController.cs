@@ -30,7 +30,7 @@ namespace Parking.Api.Controllers
         {
             var placa = _placa.Sanitizar(dto.Placa);
             if (!_placa.EhValida(placa)) return BadRequest("Placa inválida.");
-            if (await _db.Veiculos.AnyAsync(v => v.Placa == placa)) return Conflict("Placa já existe.");
+            if (await _db.Veiculos.AnyAsync(v => v.Placa == placa)) return Conflict("Placa já existe cadastrada no sistema.");
 
             var v = new Veiculo { Placa = placa, Modelo = dto.Modelo, Ano = dto.Ano, ClienteId = dto.ClienteId };
             _db.Veiculos.Add(v);
@@ -45,7 +45,6 @@ namespace Parking.Api.Controllers
             return v == null ? NotFound() : Ok(v);
         }
 
-        // BUG propositado: não invalida/atualiza nada no front; candidato deve ajustar no front (React Query) ou aqui (retornar entidade e orientar)
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] VeiculoUpdateDto dto)
         {
@@ -58,7 +57,7 @@ namespace Parking.Api.Controllers
             v.Placa = placa;
             v.Modelo = dto.Modelo;
             v.Ano = dto.Ano;
-            v.ClienteId = dto.ClienteId; // troca de cliente permitida
+            v.ClienteId = dto.ClienteId; 
             await _db.SaveChangesAsync();
             return Ok(v);
         }
